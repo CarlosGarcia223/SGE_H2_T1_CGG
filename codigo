@@ -1,0 +1,429 @@
+import tkinter as tk
+from tkinter import messagebox
+import mysql.connector
+from mysql.connector import Error
+from tkinter import ttk
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+# Función para conectar a la base de datos
+def conectar_db():
+    try:
+        conn = mysql.connector.connect(
+            host='localhost',
+            user='root',
+            password='campusfp',
+            database='ENCUESTAS'
+        )
+        if conn.is_connected():
+            return conn
+    except Error as e:
+        print("Error al conectar a la base de datos:", e)
+        return None
+
+# Función para mostrar los datos en el Treeview (aplicando filtros)
+def mostrar_datos(filtro_query=""):
+    conn = conectar_db()
+    if conn:
+        cursor = conn.cursor()
+        query = "SELECT * FROM ENCUESTA " + filtro_query
+        cursor.execute(query)
+        rows = cursor.fetchall()
+
+        # Limpiar la vista previa
+        for row in treeview.get_children():
+            treeview.delete(row)
+
+        # Insertar los datos en el Treeview
+        for row in rows:
+            treeview.insert('', 'end', values=row)
+
+        cursor.close()
+        conn.close()
+
+# Función para agregar una nueva encuesta
+def agregar_encuesta():
+    # Recogemos los datos de los campos de entrada
+    edad = edad_entry.get()
+    sexo = sexo_entry.get()
+    bebidas_semana = bebidas_semana_entry.get()
+    cervezas_semana = cervezas_semana_entry.get()
+    bebidas_fin_semana = bebidas_fin_semana_entry.get()
+    bebidas_destiladas = bebidas_destiladas_entry.get()
+    vinos_semana = vinos_semana_entry.get()
+    perdidas_control = perdidas_control_entry.get()
+    dependencia_alcohol = dependencia_alcohol_entry.get()
+    problemas_digestivos = problemas_digestivos_entry.get()
+    tension_alta = tension_alta_entry.get()
+    dolor_cabeza = dolor_cabeza_entry.get()
+
+    # Conectamos a la base de datos
+    conn = conectar_db()
+    if conn:
+        cursor = conn.cursor()
+
+        # Consulta para insertar los datos de la encuesta
+        query = """
+        INSERT INTO ENCUESTA (
+            edad, Sexo, BebidasSemana, CervezasSemana, BebidasFinSemana,
+            BebidasDestiladasSemana, VinosSemana, PerdidasControl, DiversionDependenciaAlcohol,
+            ProblemasDigestivos, TensionAlta, DolorCabeza
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        
+        # Los valores a insertar (sin incluir 'idEncuesta', porque es auto-incremental)
+        valores = (edad, sexo, bebidas_semana, cervezas_semana, bebidas_fin_semana, bebidas_destiladas,
+                   vinos_semana, perdidas_control, dependencia_alcohol, problemas_digestivos,
+                   tension_alta, dolor_cabeza)
+        
+        # Ejecutamos la consulta
+        cursor.execute(query, valores)
+        
+        # Confirmamos la inserción
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        # Mensaje de éxito y actualización de la vista
+        messagebox.showinfo("Éxito", "Encuesta agregada correctamente")
+        mostrar_datos()  # Actualizamos los datos en el Treeview después de agregar
+
+# Función para actualizar los datos de la encuesta
+def actualizar_encuesta():
+    # Recogemos los datos de los campos de entrada
+    edad = edad_entry.get()
+    sexo = sexo_entry.get()
+    bebidas_semana = bebidas_semana_entry.get()
+    cervezas_semana = cervezas_semana_entry.get()
+    bebidas_fin_semana = bebidas_fin_semana_entry.get()
+    bebidas_destiladas = bebidas_destiladas_entry.get()
+    vinos_semana = vinos_semana_entry.get()
+    perdidas_control = perdidas_control_entry.get()
+    dependencia_alcohol = dependencia_alcohol_entry.get()
+    problemas_digestivos = problemas_digestivos_entry.get()
+    tension_alta = tension_alta_entry.get()
+    dolor_cabeza = dolor_cabeza_entry.get()
+    
+    # Obtener el ID de la encuesta seleccionada
+    selected_item = treeview.selection()
+    if not selected_item:
+        messagebox.showwarning("Advertencia", "Por favor, seleccione una encuesta para actualizar.")
+        return
+    encuesta_id = treeview.item(selected_item)['values'][0]
+
+    # Conectamos a la base de datos
+    conn = conectar_db()
+    if conn:
+        cursor = conn.cursor()
+
+        # Consulta para actualizar los datos de la encuesta
+        query = """
+        UPDATE ENCUESTA SET
+            edad = %s, Sexo = %s, BebidasSemana = %s, CervezasSemana = %s,
+            BebidasFinSemana = %s, BebidasDestiladasSemana = %s, VinosSemana = %s,
+            PerdidasControl = %s, DiversionDependenciaAlcohol = %s, 
+            ProblemasDigestivos = %s, TensionAlta = %s, DolorCabeza = %s
+        WHERE idEncuesta = %s
+        """
+        
+        # Los valores a actualizar
+        valores = (edad, sexo, bebidas_semana, cervezas_semana, bebidas_fin_semana, bebidas_destiladas,
+                   vinos_semana, perdidas_control, dependencia_alcohol, problemas_digestivos,
+                   tension_alta, dolor_cabeza, encuesta_id)
+        
+        # Ejecutamos la consulta
+        cursor.execute(query, valores)
+        
+        # Confirmamos la actualización
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        # Mensaje de éxito y actualización de la vista
+        messagebox.showinfo("Éxito", "Encuesta actualizada correctamente")
+        mostrar_datos()  # Actualizamos los datos en el Treeview después de actualizar
+
+# Función para eliminar una encuesta
+def eliminar_encuesta():
+    # Obtener el ID de la encuesta seleccionada
+    selected_item = treeview.selection()
+    if not selected_item:
+        messagebox.showwarning("Advertencia", "Por favor, seleccione una encuesta para eliminar.")
+        return
+    encuesta_id = treeview.item(selected_item)['values'][0]
+
+    # Confirmación para eliminar
+    confirmacion = messagebox.askyesno("Confirmar eliminación", "¿Estás seguro de que deseas eliminar esta encuesta?")
+    if confirmacion:
+        # Conectamos a la base de datos
+        conn = conectar_db()
+        if conn:
+            cursor = conn.cursor()
+
+            # Consulta para eliminar la encuesta
+            query = "DELETE FROM ENCUESTA WHERE idEncuesta = %s"
+            cursor.execute(query, (encuesta_id,))
+
+            # Confirmamos la eliminación
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            # Mensaje de éxito y actualización de la vista
+            messagebox.showinfo("Éxito", "Encuesta eliminada correctamente")
+            mostrar_datos()  # Actualizamos los datos en el Treeview después de eliminar
+
+# Función para buscar según los campos ingresados
+def buscar_encuesta():
+    # Recoger los valores de los campos de búsqueda
+    edad = edad_entry.get()
+    sexo = sexo_entry.get()
+    bebidas_semana = bebidas_semana_entry.get()
+    cervezas_semana = cervezas_semana_entry.get()
+    bebidas_fin_semana = bebidas_fin_semana_entry.get()
+    bebidas_destiladas = bebidas_destiladas_entry.get()
+    vinos_semana = vinos_semana_entry.get()
+    perdidas_control = perdidas_control_entry.get()
+    dependencia_alcohol = dependencia_alcohol_entry.get()
+    problemas_digestivos = problemas_digestivos_entry.get()
+    tension_alta = tension_alta_entry.get()
+    dolor_cabeza = dolor_cabeza_entry.get()
+
+    # Construir la consulta de filtro basada en los campos
+    filtro_query = "WHERE 1=1"
+    
+    if edad:
+        filtro_query += f" AND edad = '{edad}'"
+    if sexo:
+        filtro_query += f" AND Sexo = '{sexo}'"
+    if bebidas_semana:
+        filtro_query += f" AND BebidasSemana = '{bebidas_semana}'"
+    if cervezas_semana:
+        filtro_query += f" AND CervezasSemana = '{cervezas_semana}'"
+    if bebidas_fin_semana:
+        filtro_query += f" AND BebidasFinSemana = '{bebidas_fin_semana}'"
+    if bebidas_destiladas:
+        filtro_query += f" AND BebidasDestiladasSemana = '{bebidas_destiladas}'"
+    if vinos_semana:
+        filtro_query += f" AND VinosSemana = '{vinos_semana}'"
+    if perdidas_control:
+        filtro_query += f" AND PerdidasControl = '{perdidas_control}'"
+    if dependencia_alcohol:
+        filtro_query += f" AND DiversionDependenciaAlcohol = '{dependencia_alcohol}'"
+    if problemas_digestivos:
+        filtro_query += f" AND ProblemasDigestivos = '{problemas_digestivos}'"
+    if tension_alta:
+        filtro_query += f" AND TensionAlta = '{tension_alta}'"
+    if dolor_cabeza:
+        filtro_query += f" AND DolorCabeza = '{dolor_cabeza}'"
+    
+    # Llamar a la función para mostrar los resultados con el filtro
+    mostrar_datos(filtro_query)
+
+# Función para generar gráficos
+def generar_grafico():
+    conn = conectar_db()
+    if conn:
+        cursor = conn.cursor()
+
+        # Query para obtener los datos de la encuesta
+        cursor.execute("SELECT edad, BebidasSemana FROM ENCUESTA")
+        data = cursor.fetchall()
+
+        # Preparar los datos
+        edades = [str(row[0]) for row in data]
+        bebidas = [int(row[1]) for row in data]
+
+        # Agrupar los datos por edad y calcular el promedio de bebidas por edad
+        edad_bebida_dict = {}
+        for i, edad in enumerate(edades):
+            if edad in edad_bebida_dict:
+                edad_bebida_dict[edad].append(bebidas[i])
+            else:
+                edad_bebida_dict[edad] = [bebidas[i]]
+
+        # Calcular el promedio de bebidas por edad
+        edades_agrupadas = list(edad_bebida_dict.keys())
+        bebidas_promedio = [sum(edad_bebida_dict[edad]) / len(edad_bebida_dict[edad]) for edad in edades_agrupadas]
+
+        # Crear un gráfico basado en la opción seleccionada
+        tipo_grafico = tipo_grafico_var.get()
+
+        if tipo_grafico == "Barras":
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.bar(edades_agrupadas, bebidas_promedio, color="skyblue")
+            ax.set_title("Consumo de bebidas por edad")
+            ax.set_xlabel("Edad")
+            ax.set_ylabel("Bebidas a la semana")
+
+            # Mejorar la legibilidad de las etiquetas en el eje X
+            ax.tick_params(axis="x", rotation=45)
+        
+        elif tipo_grafico == "Líneas":
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.plot(edades_agrupadas, bebidas_promedio, marker='o', color="green")
+            ax.set_title("Consumo de bebidas por edad")
+            ax.set_xlabel("Edad")
+            ax.set_ylabel("Bebidas a la semana")
+
+            # Mejorar la legibilidad de las etiquetas en el eje X
+            ax.tick_params(axis="x", rotation=45)
+
+        elif tipo_grafico == "Pastel":
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.pie(bebidas_promedio, labels=edades_agrupadas, autopct='%1.1f%%', startangle=90)
+            ax.set_title("Distribución del consumo de bebidas por edad")
+
+        # Mostrar el gráfico en la interfaz
+        for widget in frame_grafico.winfo_children():
+            widget.destroy()
+
+        canvas = FigureCanvasTkAgg(fig, master=frame_grafico)
+        canvas.draw()
+        canvas.get_tk_widget().pack()
+
+        cursor.close()
+        conn.close()
+
+# Configuración de la ventana principal
+root = tk.Tk()
+root.title("Gestión de Encuestas")
+
+# Campos de entrada para los datos de la encuesta
+tk.Label(root, text="Edad:").grid(row=0, column=0)
+edad_entry = tk.Entry(root)
+edad_entry.grid(row=0, column=1)
+
+tk.Label(root, text="Sexo:").grid(row=1, column=0)
+sexo_entry = tk.Entry(root)
+sexo_entry.grid(row=1, column=1)
+
+tk.Label(root, text="Bebidas a la semana:").grid(row=2, column=0)
+bebidas_semana_entry = tk.Entry(root)
+bebidas_semana_entry.grid(row=2, column=1)
+
+tk.Label(root, text="Cervezas a la semana:").grid(row=3, column=0)
+cervezas_semana_entry = tk.Entry(root)
+cervezas_semana_entry.grid(row=3, column=1)
+
+tk.Label(root, text="Bebidas fin de semana:").grid(row=4, column=0)
+bebidas_fin_semana_entry = tk.Entry(root)
+bebidas_fin_semana_entry.grid(row=4, column=1)
+
+tk.Label(root, text="Bebidas destiladas a la semana:").grid(row=5, column=0)
+bebidas_destiladas_entry = tk.Entry(root)
+bebidas_destiladas_entry.grid(row=5, column=1)
+
+tk.Label(root, text="Vinos a la semana:").grid(row=6, column=0)
+vinos_semana_entry = tk.Entry(root)
+vinos_semana_entry.grid(row=6, column=1)
+
+tk.Label(root, text="Pérdidas de control:").grid(row=7, column=0)
+perdidas_control_entry = tk.Entry(root)
+perdidas_control_entry.grid(row=7, column=1)
+
+tk.Label(root, text="Dependencia al alcohol:").grid(row=8, column=0)
+dependencia_alcohol_entry = tk.Entry(root)
+dependencia_alcohol_entry.grid(row=8, column=1)
+
+tk.Label(root, text="Problemas digestivos:").grid(row=9, column=0)
+problemas_digestivos_entry = tk.Entry(root)
+problemas_digestivos_entry.grid(row=9, column=1)
+
+tk.Label(root, text="Tensión alta:").grid(row=10, column=0)
+tension_alta_entry = tk.Entry(root)
+tension_alta_entry.grid(row=10, column=1)
+
+tk.Label(root, text="Dolor de cabeza:").grid(row=11, column=0)
+dolor_cabeza_entry = tk.Entry(root)
+dolor_cabeza_entry.grid(row=11, column=1)
+
+# Botones de acción
+btn_agregar = tk.Button(root, text="Agregar Encuesta", command=agregar_encuesta)
+btn_agregar.grid(row=12, column=0, columnspan=2)
+
+btn_actualizar = tk.Button(root, text="Actualizar Encuesta", command=actualizar_encuesta)
+btn_actualizar.grid(row=13, column=0, columnspan=2)
+
+btn_eliminar = tk.Button(root, text="Eliminar Encuesta", command=eliminar_encuesta)
+btn_eliminar.grid(row=14, column=0, columnspan=2)
+
+btn_buscar = tk.Button(root, text="Buscar", command=buscar_encuesta)
+btn_buscar.grid(row=15, column=0, columnspan=2)
+
+# Opción para seleccionar el tipo de gráfico
+tk.Label(root, text="Tipo de gráfico:").grid(row=16, column=0)
+tipo_grafico_var = tk.StringVar(value="Barras")
+tipo_grafico_menu = tk.OptionMenu(root, tipo_grafico_var, "Barras", "Líneas", "Pastel")
+tipo_grafico_menu.grid(row=16, column=1)
+
+# Botón para generar el gráfico
+btn_generar_grafico = tk.Button(root, text="Generar Gráfico", command=generar_grafico)
+btn_generar_grafico.grid(row=17, column=0, columnspan=2)
+
+# Frame para el gráfico
+frame_grafico = tk.Frame(root)
+frame_grafico.grid(row=18, column=0, columnspan=3)
+
+# Treeview para mostrar las encuestas
+columns = ("idEncuesta", "edad", "Sexo", "BebidasSemana", "CervezasSemana", "BebidasFinSemana", 
+"BebidasDestiladasSemana", "VinosSemana", "PerdidasControl", "DiversionDependenciaAlcohol", 
+"ProblemasDigestivos", "TensionAlta", "DolorCabeza")
+treeview = ttk.Treeview(root, columns=columns, show="headings")
+
+# Configurar las columnas
+for col in columns:
+    treeview.heading(col, text=col)
+    treeview.column(col, width=100)
+
+treeview.grid(row=0, column=2, rowspan=15, padx=10)
+
+# Evento para cargar los datos en los campos de entrada cuando seleccionas una fila
+def on_select(event):
+    selected_item = treeview.selection()
+    if selected_item:
+        item = treeview.item(selected_item)
+        values = item['values']
+        
+        edad_entry.delete(0, tk.END)
+        edad_entry.insert(0, values[1])
+        
+        sexo_entry.delete(0, tk.END)
+        sexo_entry.insert(0, values[2])
+
+        bebidas_semana_entry.delete(0, tk.END)
+        bebidas_semana_entry.insert(0, values[3])
+
+        cervezas_semana_entry.delete(0, tk.END)
+        cervezas_semana_entry.insert(0, values[4])
+
+        bebidas_fin_semana_entry.delete(0, tk.END)
+        bebidas_fin_semana_entry.insert(0, values[5])
+
+        bebidas_destiladas_entry.delete(0, tk.END)
+        bebidas_destiladas_entry.insert(0, values[6])
+
+        vinos_semana_entry.delete(0, tk.END)
+        vinos_semana_entry.insert(0, values[7])
+
+        perdidas_control_entry.delete(0, tk.END)
+        perdidas_control_entry.insert(0, values[8])
+
+        dependencia_alcohol_entry.delete(0, tk.END)
+        dependencia_alcohol_entry.insert(0, values[9])
+
+        problemas_digestivos_entry.delete(0, tk.END)
+        problemas_digestivos_entry.insert(0, values[10])
+
+        tension_alta_entry.delete(0, tk.END)
+        tension_alta_entry.insert(0, values[11])
+
+        dolor_cabeza_entry.delete(0, tk.END)
+        dolor_cabeza_entry.insert(0, values[12])
+
+treeview.bind('<<TreeviewSelect>>', on_select)
+
+# Mostrar los datos al iniciar
+mostrar_datos()
+
+root.mainloop()
